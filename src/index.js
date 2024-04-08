@@ -1,125 +1,132 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const filmsList = document.getElementById('films');
-  const movieDetails = document.getElementById('movie-details');
+const filmsList = document.getElementById('films')
+const posterPic = document.getElementById('poster')
+const movieTitle = document.getElementById('title')
+const movieDuration = document.getElementById('runtime')
+const movieInfo = document.getElementById('film-info')
+const timeAired = document.getElementById('showtime')
+const remTickets = document.getElementById('ticket-num')
+const ticketBtn = document.getElementById('buy-ticket')
 
-  // Function to fetch and display movie details
-  const fetchMovieDetails = async (id) => {
-      const response = await fetch(`http://localhost:3000/films/${id}`);
-      const movie = await response.json();
-      const availableTickets = movie.capacity - movie.tickets_sold;
+let fetchUrl = 'http://localhost:3000/films'
+function getItems(res) {
+    fetch(fetchUrl)
+        .then((res) => res.json())
+        .then((data) => {
+            data.forEach((movie) => {
+                const li = document.createElement('li')
+                li.innerHTML = `
+            ${movie.title.toUpperCase()}
+            <button id = 'D${movie.id}'>DELETE</button>
+            `
 
-      movieDetails.innerHTML = `
-          <img src="${movie.poster}" alt="${movie.title}" />
-          <h2>${movie.title}</h2>
-          <p>Runtime: ${movie.runtime} minutes</p>
-          <p>Showtime: ${movie.showtime}</p>
-          <p>Available Tickets: ${availableTickets}</p>
-          <button id="buy-ticket" data-id="${movie.id}" ${
-          availableTickets > 0 ? '' : 'disabled'
-      }>Buy Ticket</button>
-      `;
+                li.id = `F${movie.id}`
+                filmsList.appendChild(li)
+                if((movie.capacity - movie.tickets_sold) == 0){
+                    li.classList.add ('sold-out')
+                    document.getElementById(`D${movie.id}`).disabled=true
+                }
+                allInfoDisplay(movie)
+                removeItem(movie)
+            })
+            initLoad(data[0])
+        })
 
-      // Event listener for buying ticket
-      const buyTicketButton = document.getElementById('buy-ticket');
-      buyTicketButton.addEventListener('click', () => buyTicket(movie));
-  };
+}
+getItems();
 
-  // Function to buy a ticket
-  const buyTicket = async (movie) => {
-      if (movie.tickets_sold < movie.capacity) {
-          const newTicketsSold = movie.tickets_sold + 1;
-          const response = await fetch(`http://localhost:3000/films/${movie.id}`, {
-              method: 'PATCH',
-              headers: {
-                  'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                  tickets_sold: newTicketsSold,
-              }),
-          });
+function allInfoDisplay(movieItem) {
+    let titleLine = document.getElementById(`F${movieItem.id}`)
+    titleLine.addEventListener('click', () => {
+        remTickets.textContent = `${movieItem.capacity - movieItem.tickets_sold}`
+        posterPic.src = movieItem.poster
+        movieTitle.textContent = movieItem.title
+        movieDuration.textContent = movieItem.runtime
+        timeAired.textContent = movieItem.showtime
+        movieInfo.textContent = movieItem.description
+        if(remTickets.textContent == 0){
+            ticketBtn.textContent = 'Sold out!'
+        }else(
+            ticketBtn.textContent = 'Buy Ticket'
+        )
+        buyTicket(movieItem)
+    })
+    
+}
 
-          if (response.ok) {
-              await fetch('http://localhost:3000/tickets', {
-                  method: 'POST',
-                  headers: {
-                      'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                      film_id: movie.id,
-                      number_of_tickets: 1,
-                  }),
-              });
+function initLoad(movieItem) {
+    remTickets.textContent = `${movieItem.capacity - movieItem.tickets_sold}`
+    posterPic.src = movieItem.poster
+    movieTitle.textContent = movieItem.title
+    movieDuration.textContent = movieItem.runtime
+    timeAired.textContent = movieItem.showtime
+    movieInfo.textContent = movieItem.description
+    if(remTickets.textContent == 0){
+        ticketBtn.textContent = 'Sold out!'
+        
+    }else(
+        ticketBtn.textContent = 'Buy Ticket'
+    )
+    buyTicket(movieItem)
+}
 
-              // Update movie details after buying ticket
-              fetchMovieDetails(movie.id);
-          }
-      }
-  };
+function buyTicket(movie) {
+    ticketBtn.onclick = () => {
+        
+        if (remTickets.textContent > 0) {
+            remTickets.textContent--
+            movie.tickets_sold++
+            fetch(`${fetchUrl}/${movie.id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body:JSON.stringify({
+                    tickets_sold:movie.tickets_sold
+                })
+            }
 
-  // Function to render films menu
-  const renderFilmsMenu = async () => {
-      const response = await fetch('http://localhost:3000/films');
-      const films = await response.json();
+            )
+            .then((res)=> res.json())
+            .then(data => {
+                remTickets.textContent = `${data.capacity - data.tickets_sold}`
+                if(remTickets.textContent == 0){
+                    document.getElementById(`D${movie.id}`).disabled=true
+                    ticketBtn.textContent = 'Sold out!'
+                    document.getElementById(`F${movie.id}`).classList.add('sold-out')
+                }
+            })
 
-      filmsList.innerHTML = films
-          .map(
-              film => `
-              <li class="film-item ${film.tickets_sold >= film.capacity ? 'sold-out' : ''}" data-id="${film.id}">
-                  ${film.title}
-                  ${
-                      film.tickets_sold >= film.capacity
-                          ? '<span class="status">Sold Out</span>'
-                          : `<button class="buy-ticket-btn" data-id="${film.id}" ${
-                                film.tickets_sold >= film.capacity ? 'disabled' : ''
-                            }>Buy Ticket</button>`
-                  }
-                  <button class="delete-btn" data-id="${film.id}">Delete</button>
-              </li>`
-          )
-          .join('');
+            fetch('http://localhost:3000/tickets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body:JSON.stringify({
+                    film_id: movie.id,
+                    number_of_tickets: 1
+                })
+                
+            })
+            .catch((err) => alert(err.message))
+            
+        }
 
-      // Add event listener to each buy ticket button
-      document.querySelectorAll('.buy-ticket-btn').forEach(button => {
-          button.addEventListener('click', (event) => {
-              event.stopPropagation();
-              const id = event.target.dataset.id;
-              const movie = films.find(film => film.id === id);
-              buyTicket(movie);
-          });
-      });
 
-      // Add event listener to each delete button
-      document.querySelectorAll('.delete-btn').forEach(button => {
-          button.addEventListener('click', async (event) => {
-              event.stopPropagation();
-              const id = event.target.dataset.id;
-              await deleteFilm(id);
-          });
-      });
+    }
+}
 
-      // Add event listener to each film item to fetch its details
-      document.querySelectorAll('.film-item').forEach(film => {
-          film.addEventListener('click', () => {
-              const id = film.dataset.id;
-              fetchMovieDetails(id);
-          });
-      });
-  };
+function removeItem(movie) {
+    const deleteBtn = document.getElementById(`D${movie.id}`)
+    deleteBtn.addEventListener('click', () => {
+        fetch(`${fetchUrl}/${movie.id}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
 
-  // Function to delete a film
-  const deleteFilm = async (id) => {
-      const response = await fetch(`http://localhost:3000/films/${id}`, {
-          method: 'DELETE',
-      });
+            }
+        })
 
-      if (response.ok) {
-          const filmItem = document.querySelector(`.film-item[data-id="${id}"]`);
-          filmItem.remove();
-          movieDetails.innerHTML = ''; // Clear movie details when film is deleted
-      }
-  };
-
-  // Initial setup
-  renderFilmsMenu();
-  fetchMovieDetails(1); // Display details of the first movie initially
-});
+    } )
+}
